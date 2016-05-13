@@ -6,7 +6,10 @@ xmlns:android="http://schemas.android.com/apk/res/android"
       version="1.0.0">
 
     <name>Apple Pay</name>
-    <description>Implements ApplePay request.</description>
+    <description>
+      Implements ApplePay payment request. The plugin process the order info with Apple Pay data but doesn't send the transaction to the merchant.
+      The callback gives back the payment token with the transaction identifier. You can then forward the transaction to be processed by the merchant of your choice.
+    </description>
     <keywords>cordova,payment,apple pay</keywords>
     <repo>git@github.com:Creative-Licence-Digital/cordova-plugin-applepay.git</repo>
 
