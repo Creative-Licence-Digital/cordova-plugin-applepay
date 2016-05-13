@@ -18,6 +18,17 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 }
 
 
+- (void) canMakePayments:(CDVInvokedUrlCommand*)command {
+    BOOL canPay = [PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedNetworks];
+    NSLog(@"ApplePay canMakePaymentsUsingNetworks == %s", canPay ? "true" : "false");
+
+    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                            messageAsDictionary:@{@"success":[NSNumber numberWithBool:canPay]}];
+
+    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+}
+
+
 - (NSArray *) makeSummaryItems:(NSArray *)itemDescriptions withShippingFees:(NSDecimalNumber *)shippingFees {
 
     summaryItems = [[NSMutableArray alloc] init];
@@ -82,8 +93,6 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
         [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
         return;
     }
-
-    NSLog(@"ApplePay canMakePaymentsUsingNetworks == %s", [PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedNetworks]? "true" : "false");
 
     if ([PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedNetworks] == NO) {
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR

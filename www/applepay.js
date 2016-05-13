@@ -11,6 +11,10 @@ var ApplePay = {
         cordova.exec(null, null, "ApplePay", "setMerchantInformations", [merchantId, merchantName]);
     },
 
+    canMakePayments: function(successCallback, errorCallback) {
+        cordova.exec(successCallback, errorCallback, "ApplePay", "canMakePayments", null);
+    },
+
     makePaymentRequest: function(successCallback, errorCallback, order) {
         cordova.exec(successCallback, errorCallback, "ApplePay", "makePaymentRequest", [order]);
     }
