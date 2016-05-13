@@ -7,6 +7,7 @@
 @interface CDVApplePay : CDVPlugin <PKPaymentAuthorizationViewControllerDelegate>
 {
     NSString *merchantId;
+    NSString *merchantName;
     NSArray<NSString *> *supportedNetworks;
     NSString *paymentStatus;
     NSMutableArray *shippingMethods;
@@ -15,7 +16,7 @@
 
 @property (nonatomic, strong) NSString* paymentCallbackId;
 
-- (void)setMerchantId:(CDVInvokedUrlCommand*)command;
+- (void)setMerchantInformations:(CDVInvokedUrlCommand*)command;
 - (void)makePaymentRequest:(CDVInvokedUrlCommand*)command;
 
 @end

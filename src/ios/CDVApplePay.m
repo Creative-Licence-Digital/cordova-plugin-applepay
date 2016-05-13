@@ -11,9 +11,10 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 }
 
 
-- (void) setMerchantId:(CDVInvokedUrlCommand*)command {
+- (void) setMerchantInformations:(CDVInvokedUrlCommand*)command {
     merchantId = [command.arguments objectAtIndex:0];
-    NSLog(@"ApplePay set merchant id to %@", merchantId);
+    merchantName = [command.arguments objectAtIndex:1];
+    NSLog(@"ApplePay merchant informations %@, %@", merchantId, merchantName);
 }
 
 
@@ -21,7 +22,7 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 
     summaryItems = [[NSMutableArray alloc] init];
 
-    PKPaymentSummaryItem *totalSummaryItem = [PKPaymentSummaryItem summaryItemWithLabel:@"JR Cigars" amount:NSDecimalNumber.zero];
+    PKPaymentSummaryItem *totalSummaryItem = [PKPaymentSummaryItem summaryItemWithLabel:merchantName amount:NSDecimalNumber.zero];
 
     // add all the items to the summary items
     for (NSDictionary *item in itemDescriptions) {
@@ -75,7 +76,9 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
     self.paymentCallbackId = command.callbackId;
 
     if (merchantId == nil) {
-        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"Please call setMerchantId() with your Apple-given merchant ID."];
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                                    messageAsString: @"Please call setMerchantId() with your Apple-given merchant ID."];
+
         [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
         return;
     }
@@ -83,7 +86,9 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
     NSLog(@"ApplePay canMakePaymentsUsingNetworks == %s", [PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedNetworks]? "true" : "false");
 
     if ([PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedNetworks] == NO) {
-        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"This device cannot make payments."];
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                                    messageAsString: @"This device cannot make payments."];
+
         [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
         return;
     }
@@ -173,7 +178,7 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
             difference = [shippingMethod.amount decimalNumberBySubtracting:item.amount];
             item.amount = shippingMethod.amount;
         }
-        else if ([item.label isEqualToString:@"JR Cigars"]) {
+        else if ([item.label isEqualToString:merchantName]) {
             item.amount = [item.amount decimalNumberByAdding:difference];
         }
     }
@@ -202,7 +207,9 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
         paymentStatus = @"success";
         completion(PKPaymentAuthorizationStatusSuccess);
 
-        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:@{@"message":data}];
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                                messageAsDictionary:@{@"message":data, @"transaction":paymentToken.transactionIdentifier}];
+
         [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
     } else {
         paymentStatus = @"failure";
