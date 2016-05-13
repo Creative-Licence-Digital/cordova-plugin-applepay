@@ -4,10 +4,9 @@
 
 @synthesize paymentCallbackId;
 
-
+static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 
 - (void) pluginInitialize {
-    // Initialization code here
     supportedNetworks = @[PKPaymentNetworkAmex, PKPaymentNetworkMasterCard, PKPaymentNetworkVisa, PKPaymentNetworkDiscover];
 }
 
@@ -15,29 +14,35 @@
 - (void) setMerchantId:(CDVInvokedUrlCommand*)command {
     merchantId = [command.arguments objectAtIndex:0];
     NSLog(@"ApplePay set merchant id to %@", merchantId);
-    merchantId = @"merchant.com.example.apple-samplecode.Emporium";
-    NSLog(@"ApplePay set merchant id to %@", merchantId);
 }
 
 
-- (NSArray *) itemsFromArguments:(NSArray *)arguments {
-    NSArray *itemDescriptions = [[arguments objectAtIndex:0] objectForKey:@"items"];
+- (NSArray *) makeSummaryItems:(NSArray *)itemDescriptions withShippingFees:(NSDecimalNumber *)shippingFees {
 
-    NSMutableArray *items = [[NSMutableArray alloc] init];
+    summaryItems = [[NSMutableArray alloc] init];
 
+    PKPaymentSummaryItem *totalSummaryItem = [PKPaymentSummaryItem summaryItemWithLabel:@"JR Cigars" amount:NSDecimalNumber.zero];
+
+    // add all the items to the summary items
     for (NSDictionary *item in itemDescriptions) {
-
         NSString *label = [item objectForKey:@"label"];
-
         NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[item objectForKey:@"amount"] decimalValue]];
-
         PKPaymentSummaryItem *newItem = [PKPaymentSummaryItem summaryItemWithLabel:label amount:amount];
-
-        [items addObject:newItem];
+        totalSummaryItem.amount = [totalSummaryItem.amount decimalNumberByAdding:amount];
+        [summaryItems addObject:newItem];
     }
 
-    return items;
+    // add shipping fees if needed
+    if ([shippingFees compare:NSDecimalNumber.zero] == NSOrderedDescending) {
+        PKPaymentSummaryItem *feesItem = [PKPaymentSummaryItem summaryItemWithLabel:SHIPPING_FEES_LABEL amount:shippingFees];
+        totalSummaryItem.amount = [totalSummaryItem.amount decimalNumberByAdding:shippingFees];
+        [summaryItems addObject:feesItem];
+    }
+
+    [summaryItems addObject:totalSummaryItem];
+    return summaryItems;
 }
+
 
 
 - (PKShippingMethod *) shippingMethodWithIdentifier:(NSString *)idenfifier detail:(NSString *)detail amount:(NSDecimalNumber *)amount {
@@ -50,21 +55,15 @@
 }
 
 
-- (NSArray *) shippingMethodsFromArguments:(NSArray *)arguments {
-    NSArray *shippingDescriptions = [[arguments objectAtIndex:0] objectForKey:@"shippingMethods"];
+- (NSArray *) makeShippingMethods:(NSArray *)shippingDescriptions {
 
-    NSMutableArray *shippingMethods = [[NSMutableArray alloc] init];
-
+    shippingMethods = [[NSMutableArray alloc] init];
 
      for (NSDictionary *desc in shippingDescriptions) {
-
          NSString *identifier = [desc objectForKey:@"identifier"];
          NSString *detail = [desc objectForKey:@"detail"];
-
          NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[desc objectForKey:@"amount"] decimalValue]];
-
          PKPaymentSummaryItem *newMethod = [self shippingMethodWithIdentifier:identifier detail:detail amount:amount];
-
          [shippingMethods addObject:newMethod];
      }
 
@@ -82,6 +81,7 @@
     }
 
     NSLog(@"ApplePay canMakePaymentsUsingNetworks == %s", [PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedNetworks]? "true" : "false");
+
     if ([PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedNetworks] == NO) {
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"This device cannot make payments."];
         [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
@@ -93,9 +93,13 @@
     // Must be configured in Apple Developer Member Center
     request.merchantIdentifier = merchantId;
 
-    [request setPaymentSummaryItems:[self itemsFromArguments:command.arguments]];
+    NSArray *shippingDescriptions = [[command.arguments objectAtIndex:0] objectForKey:@"shippingMethods"];
+    [request setShippingMethods:[self makeShippingMethods:shippingDescriptions]];
 
-    [request setShippingMethods:[self shippingMethodsFromArguments:command.arguments]];
+    NSDictionary *firstShippingMethod = shippingDescriptions.firstObject;
+    NSDecimalNumber *shippingFees = [NSDecimalNumber decimalNumberWithDecimal:[[firstShippingMethod objectForKey:@"amount"] decimalValue]];
+    NSArray *itemDescriptions = [[command.arguments objectAtIndex:0] objectForKey:@"items"];
+    [request setPaymentSummaryItems:[self makeSummaryItems:itemDescriptions withShippingFees:shippingFees]];
 
     request.supportedNetworks = supportedNetworks;
 
@@ -137,22 +141,45 @@
 
     You can use this method to estimate additional shipping charges and update
     the payment summary items.
- */
-//- (void)paymentAuthorizationViewController:(PKPaymentAuthorizationViewController *)controller didSelectShippingContact:(PKContact *)contact completion:(void (^)(PKPaymentAuthorizationStatus, NSArray<PKShippingMethod *> * _Nonnull, NSArray<PKPaymentSummaryItem *> * _Nonnull))completion {
-//    // check address is in the US
-//
-//    completion(PKPaymentAuthorizationStatusSuccess);
-//}
-//
-//
-///*
-// Tells the delegate that the user selected a shipping method.
-// */
-//- (void)paymentAuthorizationViewController:(PKPaymentAuthorizationViewController *)controller didSelectShippingMethod:(PKShippingMethod *)shippingMethod completion:(void (^)(PKPaymentAuthorizationStatus, NSArray<PKPaymentSummaryItem *> * _Nonnull))completion {
-//    // update shipping fees accordingly
-//
-//    completion(PKPaymentAuthorizationStatusSuccess);
-//}
+*/
+- (void)paymentAuthorizationViewController:(PKPaymentAuthorizationViewController *)controller didSelectShippingContact:(PKContact *)contact completion:(void (^)(PKPaymentAuthorizationStatus, NSArray<PKShippingMethod *> * _Nonnull, NSArray<PKPaymentSummaryItem *> * _Nonnull))completion {
+
+    // check the shipping postal address is in the US by default.
+    if([contact.postalAddress.ISOCountryCode caseInsensitiveCompare:@"us"] == NSOrderedSame ||
+       [contact.postalAddress.country caseInsensitiveCompare:@"united states"] == NSOrderedSame ||
+       [contact.postalAddress.country caseInsensitiveCompare:@"usa"] == NSOrderedSame)
+    {
+        completion(PKPaymentAuthorizationStatusSuccess, shippingMethods, summaryItems);
+    } else {
+        completion(PKPaymentAuthorizationStatusInvalidShippingPostalAddress, shippingMethods, summaryItems);
+    }
+}
+
+
+/*
+    Whenever the user changed their shipping method we will receive a
+    callback here.
+
+    You can use this method to update to total fees according to the selected shipping method.
+*/
+- (void)paymentAuthorizationViewController:(PKPaymentAuthorizationViewController *)controller didSelectShippingMethod:(PKShippingMethod *)shippingMethod completion:(void (^)(PKPaymentAuthorizationStatus, NSArray<PKPaymentSummaryItem *> * _Nonnull))completion {
+
+    // update shipping fees item and recalculate total
+    NSDecimalNumber *difference;
+
+    for (PKPaymentSummaryItem *item in summaryItems) {
+
+        if ([item.label isEqualToString:SHIPPING_FEES_LABEL]) {
+            difference = [shippingMethod.amount decimalNumberBySubtracting:item.amount];
+            item.amount = shippingMethod.amount;
+        }
+        else if ([item.label isEqualToString:@"JR Cigars"]) {
+            item.amount = [item.amount decimalNumberByAdding:difference];
+        }
+    }
+
+    completion(PKPaymentAuthorizationStatusSuccess, summaryItems);
+}
 
 
 /*
@@ -160,7 +187,7 @@
     simply present a confirmation screen. If your payment processor failed the
     payment you would return `completion(.Failure)` instead. Remember to never
     attempt to decrypt the payment token on device.
- */
+*/
 - (void) paymentAuthorizationViewController:(PKPaymentAuthorizationViewController *)controller
                         didAuthorizePayment:(PKPayment *)payment
                                  completion:(void (^)(PKPaymentAuthorizationStatus status))completion {
@@ -200,9 +227,9 @@
     if ([paymentStatus isEqualToString:@"success"]) {
         paymentStatus = nil;
     } else if ([paymentStatus isEqualToString:@"failure"]) {
-        result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"Payment failure."];
+        result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"Fail to make payment request."];
     } else {
-        result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: @"Payment cancelled."];
+        result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:@{@"cancelled":@true}];
     }
 
     paymentStatus = nil;

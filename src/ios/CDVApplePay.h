@@ -9,6 +9,8 @@
     NSString *merchantId;
     NSArray<NSString *> *supportedNetworks;
     NSString *paymentStatus;
+    NSMutableArray *shippingMethods;
+    NSMutableArray *summaryItems;
 }
 
 @property (nonatomic, strong) NSString* paymentCallbackId;
