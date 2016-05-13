@@ -119,7 +119,7 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 
     // What type of info you need (eg email, phone, address, etc);
     //request.requiredBillingAddressFields = PKAddressFieldAll;
-    request.requiredShippingAddressFields = PKAddressFieldPostalAddress;
+    request.requiredShippingAddressFields = PKAddressFieldPostalAddress | PKAddressFieldEmail;
 
     // Which payment processing protocol the vendor supports
     // This value depends on the back end, looks like there are two possibilities

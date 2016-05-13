@@ -5,8 +5,6 @@ var argscheck = require('cordova/argscheck'),
 
 var ApplePay = {
 
-    // add function to check if we can make and can make with providers
-
     setMerchantInformations: function(merchantId, merchantName) {
         cordova.exec(null, null, "ApplePay", "setMerchantInformations", [merchantId, merchantName]);
     },

@@ -8,6 +8,8 @@ The callback gives back the payment token with the transaction identifier. You c
 
 cordova plugin add https://github.com/jbeuckm/cordova-plugin-applepay.git
 
+You must enable Apple Pay entitlement in your XCode project and specify the merchant Id manually.
+
 
 ## Supported Platforms
 
@@ -53,7 +55,7 @@ The shipping postal address is validated to be located in the United States by d
 ### Parameters
 
 - __order.items__: Array of item objects with form ```{ label: "Item", amount: 29.99 }```
-- __order.shippingMethods__: Array of item objects with form ```{ identifier: "My Method", detail: "Shipping method", amount: 4.99 }```
+- __order.shippingMethods__: Array of item objects with form ```{ identifier: "Standard Shipping", detail: "Delivers within two working days.", amount: 4.99 }```
 
 
 ### Example
