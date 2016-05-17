@@ -17,7 +17,8 @@
 @property (nonatomic, strong) NSString* paymentCallbackId;
 
 - (void)setMerchantInformations:(CDVInvokedUrlCommand*)command;
-- (void) canMakePayments:(CDVInvokedUrlCommand*)command;
+- (void)canMakePayments:(CDVInvokedUrlCommand*)command;
 - (void)makePaymentRequest:(CDVInvokedUrlCommand*)command;
+
 
 @end

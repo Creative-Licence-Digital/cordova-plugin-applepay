@@ -6,6 +6,7 @@
 
 static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 
+
 - (void) pluginInitialize {
     supportedNetworks = @[PKPaymentNetworkAmex, PKPaymentNetworkMasterCard, PKPaymentNetworkVisa, PKPaymentNetworkDiscover];
 }
@@ -26,60 +27,6 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
                                             messageAsDictionary:@{@"success":[NSNumber numberWithBool:canPay]}];
 
     [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-}
-
-
-- (NSArray *) makeSummaryItems:(NSArray *)itemDescriptions withShippingFees:(NSDecimalNumber *)shippingFees {
-
-    summaryItems = [[NSMutableArray alloc] init];
-
-    PKPaymentSummaryItem *totalSummaryItem = [PKPaymentSummaryItem summaryItemWithLabel:merchantName amount:NSDecimalNumber.zero];
-
-    // add all the items to the summary items
-    for (NSDictionary *item in itemDescriptions) {
-        NSString *label = [item objectForKey:@"label"];
-        NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[item objectForKey:@"amount"] decimalValue]];
-        PKPaymentSummaryItem *newItem = [PKPaymentSummaryItem summaryItemWithLabel:label amount:amount];
-        totalSummaryItem.amount = [totalSummaryItem.amount decimalNumberByAdding:amount];
-        [summaryItems addObject:newItem];
-    }
-
-    // add shipping fees if needed
-    if ([shippingFees compare:NSDecimalNumber.zero] == NSOrderedDescending) {
-        PKPaymentSummaryItem *feesItem = [PKPaymentSummaryItem summaryItemWithLabel:SHIPPING_FEES_LABEL amount:shippingFees];
-        totalSummaryItem.amount = [totalSummaryItem.amount decimalNumberByAdding:shippingFees];
-        [summaryItems addObject:feesItem];
-    }
-
-    [summaryItems addObject:totalSummaryItem];
-    return summaryItems;
-}
-
-
-
-- (PKShippingMethod *) shippingMethodWithIdentifier:(NSString *)idenfifier detail:(NSString *)detail amount:(NSDecimalNumber *)amount {
-    PKShippingMethod *shippingMethod = [PKShippingMethod new];
-    shippingMethod.identifier = idenfifier;
-    shippingMethod.label = idenfifier;
-    shippingMethod.detail = detail;
-    shippingMethod.amount = amount;
-    return shippingMethod;
-}
-
-
-- (NSArray *) makeShippingMethods:(NSArray *)shippingDescriptions {
-
-    shippingMethods = [[NSMutableArray alloc] init];
-
-     for (NSDictionary *desc in shippingDescriptions) {
-         NSString *identifier = [desc objectForKey:@"identifier"];
-         NSString *detail = [desc objectForKey:@"detail"];
-         NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[desc objectForKey:@"amount"] decimalValue]];
-         PKPaymentSummaryItem *newMethod = [self shippingMethodWithIdentifier:identifier detail:detail amount:amount];
-         [shippingMethods addObject:newMethod];
-     }
-
-     return shippingMethods;
 }
 
 
@@ -118,7 +65,7 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
     request.supportedNetworks = supportedNetworks;
 
     // What type of info you need (eg email, phone, address, etc);
-    //request.requiredBillingAddressFields = PKAddressFieldAll;
+    request.requiredBillingAddressFields = PKAddressFieldName | PKAddressFieldPostalAddress;
     request.requiredShippingAddressFields = PKAddressFieldPostalAddress | PKAddressFieldEmail;
 
     // Which payment processing protocol the vendor supports
@@ -142,6 +89,73 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 
     [self.viewController presentViewController:authVC animated:YES completion:nil];
 }
+
+
+// MARK: - Helpers
+
+- (NSArray *) makeSummaryItems:(NSArray *)itemDescriptions withShippingFees:(NSDecimalNumber *)shippingFees {
+
+    summaryItems = [[NSMutableArray alloc] init];
+
+    PKPaymentSummaryItem *totalSummaryItem = [PKPaymentSummaryItem summaryItemWithLabel:merchantName amount:NSDecimalNumber.zero];
+
+    // add all the items to the summary items
+    for (NSDictionary *item in itemDescriptions) {
+        NSString *label = [item objectForKey:@"label"];
+        NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[item objectForKey:@"amount"] decimalValue]];
+        PKPaymentSummaryItem *newItem = [PKPaymentSummaryItem summaryItemWithLabel:label amount:amount];
+        totalSummaryItem.amount = [totalSummaryItem.amount decimalNumberByAdding:amount];
+        [summaryItems addObject:newItem];
+    }
+
+    // add shipping fees if needed
+    if ([shippingFees compare:NSDecimalNumber.zero] == NSOrderedDescending) {
+        PKPaymentSummaryItem *feesItem = [PKPaymentSummaryItem summaryItemWithLabel:SHIPPING_FEES_LABEL amount:shippingFees];
+        totalSummaryItem.amount = [totalSummaryItem.amount decimalNumberByAdding:shippingFees];
+        [summaryItems addObject:feesItem];
+    }
+
+    [summaryItems addObject:totalSummaryItem];
+    return summaryItems;
+}
+
+
+- (PKShippingMethod *) shippingMethodWithIdentifier:(NSString *)idenfifier detail:(NSString *)detail amount:(NSDecimalNumber *)amount {
+    PKShippingMethod *shippingMethod = [PKShippingMethod new];
+    shippingMethod.identifier = idenfifier;
+    shippingMethod.label = idenfifier;
+    shippingMethod.detail = detail;
+    shippingMethod.amount = amount;
+    return shippingMethod;
+}
+
+
+- (NSArray *) makeShippingMethods:(NSArray *)shippingDescriptions {
+
+    shippingMethods = [[NSMutableArray alloc] init];
+
+     for (NSDictionary *desc in shippingDescriptions) {
+         NSString *identifier = [desc objectForKey:@"identifier"];
+         NSString *detail = [desc objectForKey:@"detail"];
+         NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[desc objectForKey:@"amount"] decimalValue]];
+         PKPaymentSummaryItem *newMethod = [self shippingMethodWithIdentifier:identifier detail:detail amount:amount];
+         [shippingMethods addObject:newMethod];
+     }
+
+     return shippingMethods;
+}
+
+
+- (NSDictionary *) parseContactDetails:(PKContact *)contact {
+    NSDictionary *name =  @{@"firstName": contact.name.givenName, @"lastName": contact.name.familyName};
+    NSDictionary *address = [contact.postalAddress dictionaryWithValuesForKeys:@[@"street", @"city", @"state", @"postalCode", @"country", @"ISOCountryCode"]];
+
+    NSMutableDictionary *contactDetails = [[NSMutableDictionary alloc] initWithDictionary:name];
+    [contactDetails addEntriesFromDictionary:address];
+
+    return contactDetails;
+}
+
 
 
 // MARK: - PKPaymentAuthorizationViewControllerDelegate
@@ -210,14 +224,25 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
     PKPaymentToken *paymentToken = payment.token;
     NSLog(@"Transaction identifier: %@", paymentToken.transactionIdentifier);
 
-    NSString *data = [paymentToken.paymentData base64EncodedStringWithOptions:0];
+    if (paymentToken.paymentData) {
+        NSString *data = [paymentToken.paymentData base64EncodedStringWithOptions:0];
 
-    if (data) {
-        paymentStatus = @"success";
-        completion(PKPaymentAuthorizationStatusSuccess);
+        NSDictionary *billing = [self parseContactDetails:payment.billingContact];
+        NSDictionary *shipping = [self parseContactDetails:payment.shippingContact];
+
+        NSDictionary *contact = @{@"email": payment.shippingContact.emailAddress};
+        NSDictionary *shippingMethod = [payment.shippingMethod dictionaryWithValuesForKeys:@[@"label", @"detail", @"amount"]];
 
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                                                messageAsDictionary:@{@"message":data, @"transaction":paymentToken.transactionIdentifier}];
+                                                messageAsDictionary:@{@"paymentData":data,
+                                                                      @"transactionId":paymentToken.transactionIdentifier,
+                                                                      @"contact": contact,
+                                                                      @"billingDetails": billing,
+                                                                      @"shippingDetails": shipping,
+                                                                      @"shippingMethod": shippingMethod}];
+
+        paymentStatus = @"success";
+        completion(PKPaymentAuthorizationStatusSuccess);
 
         [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
     } else {

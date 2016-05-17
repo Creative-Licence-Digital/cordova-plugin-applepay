@@ -30,10 +30,10 @@ Determine whether the device can process payment requests using default payment 
 ### Example
 ```
 ApplePay.canMakePayments((function({success}) {
-    return console.log("can make payment", success);
+    return console.log("can make payment", success),
   }), (function(err) {
-    return console.log('Cannot determine if device can process payment');
-  }));
+    return console.log('Cannot determine if device can process payment'),
+  })),
 ```
 
 ## ApplePay.setMerchantInformations
@@ -42,7 +42,7 @@ Set your Apple-given merchant Id and merchant name used in the payment sheet.
 
 ### Example
 ```
-ApplePay.setMerchantInformations('merchant.com.example.app', 'Merchant Name');
+ApplePay.setMerchantInformations('merchant.com.example.app', 'Merchant Name'),
 ```
 
 ## ApplePay.makePaymentRequest
@@ -62,11 +62,11 @@ The shipping postal address is validated to be located in the United States by d
 
 ```
 function onError(err) {
-    alert(JSON.stringify(err));
+    alert(JSON.stringify(err)),
 }
 
 function onSuccess(response) {
-    alert(JSON.stringify(response));
+    alert(JSON.stringify(response)),
 }
 
 ApplePay.makePaymentRequest(onSuccess, onError, {
@@ -78,5 +78,51 @@ ApplePay.makePaymentRequest(onSuccess, onError, {
   	{ identifier: "Standard Shipping", detail: "Delivers within two working days.", amount: 0 },
   	{ identifier: "Fast Shipping", detail: "Delivers within 4 hours.", amount: 14.99 }
   ]
-);
+),
+```
+
+### Response Format
+
+- If Apple Pay return an error, it will execute the error callback with the error details.
+- If the user cancels the payment, the success callback is called with the follwing response:
+```
+response: { cancelled: true }
+```
+
+- If the payment is successful, the call return the following response format:
+
+```
+response:
+{
+    billingDetails = {
+        ISOCountryCode = ca,
+        city = Atlanta,
+        country = USA,
+        firstName = John,
+        lastName = Appleseed,
+        postalCode = 30303,
+        state = GA,
+        street = "3494 Kuhl Avenue"
+    },
+    contact =     {
+        email = "John-Appleseed@mac.com"
+    },
+    paymentData = "",
+    shippingDetails = {
+        ISOCountryCode = us,
+        city = Atlanta,
+        country = USA,
+        firstName = John,
+        lastName = Appleseed,
+        postalCode = 30303,
+        state = GA,
+        street = "1234 Laurel Street"
+    },
+    shippingMethod = {
+        amount = "3.99",
+        detail = "Delivers within 4 business days.",
+        label = "Standard Shipping"
+    },
+    transactionId = "Simulated Identifier"
+}
 ```
