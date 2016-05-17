@@ -94,6 +94,7 @@ response: { cancelled: true }
 ```
 response:
 {
+    amount = "129.99",
     billingDetails = {
         ISOCountryCode = ca,
         city = Atlanta,
@@ -104,7 +105,7 @@ response:
         state = GA,
         street = "3494 Kuhl Avenue"
     },
-    contact =     {
+    contact = {
         email = "John-Appleseed@mac.com"
     },
     paymentData = "",
