@@ -156,6 +156,36 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
     return contactDetails;
 }
 
+- (BOOL) isValidPaymentInformation:(NSDictionary *)form {
+
+    NSString *country = form[@"country"];
+    NSString *countryCode = form[@"ISOCountryCode"];
+    if (country && country.length == 0 && countryCode.length == 0) {
+        return NO;
+    }
+
+    for (NSString* key in form.keyEnumerator) {
+        NSString *value = [form objectForKey:key];
+        if (!value || value.length == 0) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+
+- (BOOL) isValidEmail:(NSString *)email {
+
+    NSString *emailRegex = @"[A-Z0-9a-z][A-Z0-9a-z._%+-]*@[A-Za-z0-9][A-Za-z0-9.-]*\\.[A-Za-z]{2,6}";
+    NSPredicate *emailTest = [NSPredicate predicateWithFormat:@"SELF MATCHES %@", emailRegex];
+
+    if([emailTest evaluateWithObject:email]) {
+        return YES;
+    } else {
+        return NO;
+    }
+}
+
 
 
 // MARK: - PKPaymentAuthorizationViewControllerDelegate
@@ -228,9 +258,23 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
         NSString *data = [paymentToken.paymentData base64EncodedStringWithOptions:0];
 
         NSDictionary *billing = [self parseContactDetails:payment.billingContact];
+        if (![self isValidPaymentInformation:billing]) {
+            completion(PKPaymentAuthorizationStatusInvalidBillingPostalAddress);
+            return;
+        }
+
         NSDictionary *shipping = [self parseContactDetails:payment.shippingContact];
+        if (![self isValidPaymentInformation:shipping]) {
+            completion(PKPaymentAuthorizationStatusInvalidShippingPostalAddress);
+            return;
+        }
 
         NSDictionary *contact = @{@"email": payment.shippingContact.emailAddress};
+        if (![self isValidEmail:contact[@"email"]]) {
+            completion(PKPaymentAuthorizationStatusInvalidShippingContact);
+            return;
+        }
+
         NSDictionary *shippingMethod = [payment.shippingMethod dictionaryWithValuesForKeys:@[@"label", @"detail", @"amount"]];
 
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
