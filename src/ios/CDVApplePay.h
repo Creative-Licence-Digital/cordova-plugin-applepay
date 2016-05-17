@@ -12,6 +12,7 @@
     NSString *paymentStatus;
     NSMutableArray *shippingMethods;
     NSMutableArray *summaryItems;
+    NSDecimalNumber *totalPayment;
 }
 
 @property (nonatomic, strong) NSString* paymentCallbackId;

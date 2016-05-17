@@ -115,6 +115,7 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
         [summaryItems addObject:feesItem];
     }
 
+    totalPayment = totalSummaryItem.amount;
     [summaryItems addObject:totalSummaryItem];
     return summaryItems;
 }
@@ -165,9 +166,11 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
     }
 
     for (NSString* key in form.keyEnumerator) {
-        NSString *value = [form objectForKey:key];
-        if (!value || value.length == 0) {
-            return NO;
+        if (![key isEqualToString:@"country"] && ![key isEqualToString:@"ISOCountryCode"]) {
+            NSString *value = [form objectForKey:key];
+            if (!value || value.length == 0) {
+                return NO;
+            }
         }
     }
     return YES;
@@ -233,6 +236,7 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
         }
         else if ([item.label isEqualToString:merchantName]) {
             item.amount = [item.amount decimalNumberByAdding:difference];
+            totalPayment = item.amount;
         }
     }
 
@@ -277,13 +281,16 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 
         NSDictionary *shippingMethod = [payment.shippingMethod dictionaryWithValuesForKeys:@[@"label", @"detail", @"amount"]];
 
+        NSString *amount = [NSString stringWithFormat:@"%@", totalPayment];
+
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
                                                 messageAsDictionary:@{@"paymentData":data,
                                                                       @"transactionId":paymentToken.transactionIdentifier,
                                                                       @"contact": contact,
                                                                       @"billingDetails": billing,
                                                                       @"shippingDetails": shipping,
-                                                                      @"shippingMethod": shippingMethod}];
+                                                                      @"shippingMethod": shippingMethod,
+                                                                      @"amount": amount}];
 
         paymentStatus = @"success";
         completion(PKPaymentAuthorizationStatusSuccess);
