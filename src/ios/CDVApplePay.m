@@ -125,8 +125,12 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
     PKShippingMethod *shippingMethod = [PKShippingMethod new];
     shippingMethod.identifier = idenfifier;
     shippingMethod.label = idenfifier;
-    shippingMethod.detail = detail;
     shippingMethod.amount = amount;
+    if (detail) {
+        shippingMethod.detail = detail;
+    } else {
+        shippingMethod.detail = @"";
+    }
     return shippingMethod;
 }
 
