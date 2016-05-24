@@ -1,0 +1,26 @@
+{
+  "name": "com.cld.cordova.applepay",
+  "version": "1.0.0",
+  "description": "Cordova Apple Pay Plugin",
+  "cordova": {
+    "id": "com.cld.cordova.applepay",
+    "platforms": [
+      "ios"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Creative-Licence-Digital/cordova-plugin-applepay.git"
+  },
+  "keywords": [
+    "cordova",
+    "applepay",
+    "payment",
+    "apple",
+    "pay",
+    "apple pay",
+    "cordova-ios"
+  ],
+  "author": "Creative Licence Digital",
+  "license": "MIT licence"
+}
