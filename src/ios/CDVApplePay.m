@@ -10,7 +10,11 @@ static NSString *const DISCOUNT_LABEL = @"Discount";
 
 
 - (void) pluginInitialize {
-    supportedNetworks = @[PKPaymentNetworkAmex, PKPaymentNetworkMasterCard, PKPaymentNetworkVisa, PKPaymentNetworkDiscover];
+    supportedNetworks = [NSMutableArray arrayWithArray:@[PKPaymentNetworkAmex, PKPaymentNetworkMasterCard, PKPaymentNetworkVisa]];
+    BOOL isNetworkDiscoverAvailable = (&PKPaymentNetworkDiscover != NULL);
+    if (isNetworkDiscoverAvailable) {
+        [supportedNetworks addObject:PKPaymentNetworkDiscover];
+    }
 }
 
 

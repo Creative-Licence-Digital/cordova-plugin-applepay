@@ -8,7 +8,7 @@
 {
     NSString *merchantId;
     NSString *merchantName;
-    NSArray<NSString *> *supportedNetworks;
+    NSMutableArray<NSString *> *supportedNetworks;
     NSString *paymentStatus;
 
     NSMutableArray *shippingMethods;
