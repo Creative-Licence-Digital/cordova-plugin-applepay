@@ -57,6 +57,9 @@ The shipping postal address is validated to be located in the United States by d
 - __order.items__: Array of item objects with form ```{ label: "Item", amount: 29.99 }```
 - __order.shippingMethods__: Array of item objects with form ```{ identifier: "Standard Shipping", detail: "Delivers within two working days.", amount: 4.99 }```
 
+optional parameters:
+- __order.stateTaxes__: Array of item objects with form ```{ "state": "NY", "value": 0.05 }```
+- __order.stateDiscount__: Array of item objects with form ```{ "state": "NC", "value": 0.1 }```
 
 ### Example
 
@@ -70,15 +73,24 @@ function onSuccess(response) {
 }
 
 ApplePay.makePaymentRequest(onSuccess, onError, {
-	items: [
+  items: [
       { label: "First Item", amount: 29.99 },
       { label: "Second Item", amount: 59.99 }
   ],
   shippingMethods: [
   	{ identifier: "Standard Shipping", detail: "Delivers within two working days.", amount: 0 },
   	{ identifier: "Fast Shipping", detail: "Delivers within 4 hours.", amount: 14.99 }
+  ],
+  // apply 5% tax in New York state
+  stateTax: [
+    { "state": "NC", "value": 0.05 }
+  ],
+  // apply 10% discount in Iowa and Louisiana states
+  stateDiscount: [
+    { "state": "IA", "value": 0.1 },
+    { "state": "LA", "value": 0.1 }
   ]
-),
+})
 ```
 
 ### Response Format
@@ -95,6 +107,8 @@ response: { cancelled: true }
 response:
 {
     amount = "129.99",
+    tax = "5.75",
+    discount = 0,
     billingDetails = {
         ISOCountryCode = ca,
         city = Atlanta,

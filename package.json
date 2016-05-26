@@ -1,6 +1,6 @@
 {
   "name": "com.cld.cordova.applepay",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cordova Apple Pay Plugin",
   "cordova": {
     "id": "com.cld.cordova.applepay",

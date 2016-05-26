@@ -10,9 +10,13 @@
     NSString *merchantName;
     NSArray<NSString *> *supportedNetworks;
     NSString *paymentStatus;
+
     NSMutableArray *shippingMethods;
-    NSMutableArray *summaryItems;
-    NSDecimalNumber *totalPayment;
+    NSMutableArray *summaryItems;     // Items, Shipping fees, (Tax), (Discount), Total
+    NSArray *stateTaxes;              // optional
+    NSArray *stateDiscounts;          // optional
+
+    BOOL hasShippingMethods;          // shipping method is provided
 }
 
 @property (nonatomic, strong) NSString* paymentCallbackId;

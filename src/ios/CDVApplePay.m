@@ -5,6 +5,8 @@
 @synthesize paymentCallbackId;
 
 static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
+static NSString *const TAX_LABEL = @"Tax";
+static NSString *const DISCOUNT_LABEL = @"Discount";
 
 
 - (void) pluginInitialize {
@@ -49,18 +51,33 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
         return;
     }
 
+    NSArray *itemDescriptions = [[command.arguments objectAtIndex:0] objectForKey:@"items"];
+    if (!itemDescriptions) {
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                                    messageAsString: @"Your payment request must contain items."];
+
+        [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
+        return;
+    }
+
     PKPaymentRequest *request = [PKPaymentRequest new];
 
     // Must be configured in Apple Developer Member Center
     request.merchantIdentifier = merchantId;
 
+    NSDecimalNumber *shippingFees = [NSDecimalNumber zero];
     NSArray *shippingDescriptions = [[command.arguments objectAtIndex:0] objectForKey:@"shippingMethods"];
-    [request setShippingMethods:[self makeShippingMethods:shippingDescriptions]];
+    if (shippingDescriptions) {
+        hasShippingMethods = YES;
+        [request setShippingMethods:[self makeShippingMethods:shippingDescriptions]];
+        PKPaymentSummaryItem *firstShippingMethod = shippingMethods.firstObject;
+        shippingFees = firstShippingMethod.amount;
+    }
 
-    NSDictionary *firstShippingMethod = shippingDescriptions.firstObject;
-    NSDecimalNumber *shippingFees = [NSDecimalNumber decimalNumberWithDecimal:[[firstShippingMethod objectForKey:@"amount"] decimalValue]];
-    NSArray *itemDescriptions = [[command.arguments objectAtIndex:0] objectForKey:@"items"];
     [request setPaymentSummaryItems:[self makeSummaryItems:itemDescriptions withShippingFees:shippingFees]];
+
+    stateTaxes = [[command.arguments objectAtIndex:0] objectForKey:@"stateTax"];
+    stateDiscounts = [[command.arguments objectAtIndex:0] objectForKey:@"stateDiscount"];
 
     request.supportedNetworks = supportedNetworks;
 
@@ -108,14 +125,13 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
         [summaryItems addObject:newItem];
     }
 
-    // add shipping fees if needed
-    if ([shippingFees compare:NSDecimalNumber.zero] == NSOrderedDescending) {
+    // must display the shipping fees, even if shipping is free
+    if (hasShippingMethods) {
         PKPaymentSummaryItem *feesItem = [PKPaymentSummaryItem summaryItemWithLabel:SHIPPING_FEES_LABEL amount:shippingFees];
         totalSummaryItem.amount = [totalSummaryItem.amount decimalNumberByAdding:shippingFees];
         [summaryItems addObject:feesItem];
     }
 
-    totalPayment = totalSummaryItem.amount;
     [summaryItems addObject:totalSummaryItem];
     return summaryItems;
 }
@@ -137,17 +153,22 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 
 - (NSArray *) makeShippingMethods:(NSArray *)shippingDescriptions {
 
-    shippingMethods = [[NSMutableArray alloc] init];
+    NSMutableArray *shippings = [[NSMutableArray alloc] init];
 
-     for (NSDictionary *desc in shippingDescriptions) {
-         NSString *identifier = [desc objectForKey:@"identifier"];
-         NSString *detail = [desc objectForKey:@"detail"];
-         NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[desc objectForKey:@"amount"] decimalValue]];
-         PKPaymentSummaryItem *newMethod = [self shippingMethodWithIdentifier:identifier detail:detail amount:amount];
-         [shippingMethods addObject:newMethod];
-     }
+    for (NSDictionary *desc in shippingDescriptions) {
+        NSString *identifier = [desc objectForKey:@"identifier"];
+        NSString *detail = [desc objectForKey:@"detail"];
+        NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[desc objectForKey:@"amount"] decimalValue]];
+        PKPaymentSummaryItem *newMethod = [self shippingMethodWithIdentifier:identifier detail:detail amount:amount];
+        [shippings addObject:newMethod];
+    }
 
-     return shippingMethods;
+    NSSortDescriptor *sortDescriptor;
+    sortDescriptor = [[NSSortDescriptor alloc] initWithKey:@"amount" ascending:YES];
+    NSArray *sortDescriptors = [NSArray arrayWithObject:sortDescriptor];
+    shippingMethods = [NSMutableArray arrayWithArray:[shippings sortedArrayUsingDescriptors:sortDescriptors]];
+
+    return shippingMethods;
 }
 
 
@@ -160,6 +181,7 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 
     return contactDetails;
 }
+
 
 - (BOOL) isValidPaymentInformation:(NSDictionary *)form {
 
@@ -194,6 +216,185 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 }
 
 
+// MARK: - Payment Sheet Calculation Helpers
+
+- (void) updateTaxForState:(NSString *) state {
+    [self removeTaxFromPaymentSheet];
+    if (state) {
+        for (NSDictionary *tax in stateTaxes) {
+            NSString *taxState = [tax objectForKey:@"state"];
+            NSNumber *taxToApply = [tax objectForKey:@"value"];
+            if (taxState && taxToApply && [taxState caseInsensitiveCompare:state] == NSOrderedSame) {
+                [self applyTaxToPaymentSheet:taxToApply];
+            }
+        }
+    }
+}
+
+- (void) updateDiscountForState:(NSString *) state {
+    [self removeDiscountFromPaymentSheet];
+    if (state) {
+        for (NSDictionary *discount in stateDiscounts) {
+            NSString *discountState = [discount objectForKey:@"state"];
+            NSNumber *discountToApply = [discount objectForKey:@"value"];
+            if (discountState && discountToApply && [discountState caseInsensitiveCompare:state] == NSOrderedSame) {
+                [self applyDiscountToPaymentSheet:discountToApply];
+            }
+        }
+    }
+}
+
+- (PKPaymentSummaryItem *) getShippingItem {
+    PKPaymentSummaryItem *shippingItem;
+    for (PKPaymentSummaryItem *item in summaryItems) {
+        if ([item.label isEqualToString:SHIPPING_FEES_LABEL]) {
+            shippingItem = item;
+            break;
+        }
+    }
+    return shippingItem;
+}
+
+- (PKPaymentSummaryItem *) getTaxItem {
+    PKPaymentSummaryItem *taxItem;
+    for (PKPaymentSummaryItem *item in summaryItems) {
+        if ([item.label isEqualToString:TAX_LABEL]) {
+            taxItem = item;
+            break;
+        }
+    }
+    return taxItem;
+}
+
+- (PKPaymentSummaryItem *) getDiscountItem {
+    PKPaymentSummaryItem *discountItem;
+    for (PKPaymentSummaryItem *item in summaryItems) {
+        if ([item.label isEqualToString:DISCOUNT_LABEL]) {
+            discountItem = item;
+            break;
+        }
+    }
+    return discountItem;
+}
+
+- (PKPaymentSummaryItem *) getMerchantTotalItem {
+    PKPaymentSummaryItem *total;
+    for (PKPaymentSummaryItem *item in summaryItems) {
+        if ([item.label isEqualToString:merchantName]) {
+            total = item;
+            break;
+        }
+    }
+    return total;
+}
+
+- (NSDecimalNumber *) getSubtotalAmount {
+    NSDecimalNumber *subtotal = [NSDecimalNumber zero];
+    for (PKPaymentSummaryItem *item in summaryItems) {
+        if (![item.label isEqualToString:TAX_LABEL] && ![item.label isEqualToString:DISCOUNT_LABEL] &&
+            ![item.label isEqualToString:SHIPPING_FEES_LABEL] && ![item.label isEqualToString:merchantName]) {
+            subtotal = [subtotal decimalNumberByAdding:item.amount];
+        }
+    }
+    return subtotal;
+}
+
+- (NSDecimalNumber *) getTaxAmount {
+    NSDecimalNumber *taxAmount = [NSDecimalNumber zero];
+    PKPaymentSummaryItem *taxItem = [self getTaxItem];
+    if (taxItem) {
+        taxAmount = taxItem.amount;
+    }
+    return taxAmount;
+}
+
+- (NSDecimalNumber *) getDiscountAmount {
+    NSDecimalNumber *discountAmount = [NSDecimalNumber zero];
+    PKPaymentSummaryItem *discountItem = [self getDiscountItem];
+    if (discountItem) {
+        discountAmount = discountItem.amount;
+    }
+    return discountAmount;
+}
+
+// tax is inserted after all the items and shipping fees
+- (NSUInteger) indexForTax {
+    NSUInteger index = 0;
+    for (PKPaymentSummaryItem *item in summaryItems) {
+        if ([item.label isEqualToString:SHIPPING_FEES_LABEL]) {
+            index++;
+            break;
+        } else if ([item.label isEqualToString:DISCOUNT_LABEL] || [item.label isEqualToString:merchantName]) {
+            break;
+        } else {
+            index++;
+        }
+    }
+    return index;
+}
+
+// discount is inserted after all the items, shipping fees and tax
+- (NSUInteger) indexForDiscount {
+    NSUInteger index = 0;
+    for (PKPaymentSummaryItem *item in summaryItems) {
+        if ([item.label isEqualToString:merchantName]) {
+            break;
+        } else {
+            index++;
+        }
+    }
+    return index;
+}
+
+- (void) removeTaxFromPaymentSheet {
+    PKPaymentSummaryItem *taxToDelete = [self getTaxItem];
+    PKPaymentSummaryItem *merchantTotal = [self getMerchantTotalItem];
+
+    if (taxToDelete) {
+        merchantTotal.amount = [merchantTotal.amount decimalNumberBySubtracting:taxToDelete.amount];
+        [summaryItems removeObject:taxToDelete];
+    }
+}
+
+- (void) removeDiscountFromPaymentSheet {
+    PKPaymentSummaryItem *discountToDelete = [self getDiscountItem];
+    PKPaymentSummaryItem *merchantTotal = [self getMerchantTotalItem];
+
+    if (discountToDelete) {
+        merchantTotal.amount = [merchantTotal.amount decimalNumberByAdding:discountToDelete.amount];
+        [summaryItems removeObject:discountToDelete];
+    }
+}
+
+/**
+ * @param taxToApply: tax percentage to apply
+ */
+- (void) applyTaxToPaymentSheet: (NSNumber *) taxToApply {
+    PKPaymentSummaryItem *merchantTotal = [self getMerchantTotalItem];
+    NSDecimalNumber *subtotal = [self getSubtotalAmount];
+
+    NSDecimalNumber *taxAmount = [subtotal decimalNumberByMultiplyingBy:[NSDecimalNumber decimalNumberWithDecimal:[taxToApply decimalValue]]];
+    PKPaymentSummaryItem *newTaxItem = [PKPaymentSummaryItem summaryItemWithLabel:TAX_LABEL amount:taxAmount];
+    [summaryItems insertObject:newTaxItem atIndex:[self indexForTax]];
+
+    merchantTotal.amount = [merchantTotal.amount decimalNumberByAdding:taxAmount];
+}
+
+/**
+* @param discountToApply: discount percentage to apply
+*/
+- (void) applyDiscountToPaymentSheet: (NSNumber *) discountToApply {
+    PKPaymentSummaryItem *merchantTotal = [self getMerchantTotalItem];
+    NSDecimalNumber *subtotal = [self getSubtotalAmount];
+
+    NSDecimalNumber *discountAmount = [subtotal decimalNumberByMultiplyingBy:[NSDecimalNumber decimalNumberWithDecimal:[discountToApply decimalValue]]];
+    PKPaymentSummaryItem *newDiscountItem = [PKPaymentSummaryItem summaryItemWithLabel:DISCOUNT_LABEL amount:discountAmount];
+    [summaryItems insertObject:newDiscountItem atIndex:[self indexForDiscount]];
+
+    merchantTotal.amount = [merchantTotal.amount decimalNumberBySubtracting:discountAmount];
+}
+
+
 
 // MARK: - PKPaymentAuthorizationViewControllerDelegate
 
@@ -214,6 +415,14 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
        [contact.postalAddress.country caseInsensitiveCompare:@"united states"] == NSOrderedSame ||
        [contact.postalAddress.country caseInsensitiveCompare:@"usa"] == NSOrderedSame)
     {
+        if (stateTaxes) {
+            [self updateTaxForState:contact.postalAddress.state];
+        }
+
+        if (stateDiscounts) {
+            [self updateDiscountForState:contact.postalAddress.state];
+        }
+
         completion(PKPaymentAuthorizationStatusSuccess, shippingMethods, summaryItems);
     } else {
         completion(PKPaymentAuthorizationStatusInvalidShippingPostalAddress, shippingMethods, summaryItems);
@@ -229,20 +438,20 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
 */
 - (void)paymentAuthorizationViewController:(PKPaymentAuthorizationViewController *)controller didSelectShippingMethod:(PKShippingMethod *)shippingMethod completion:(void (^)(PKPaymentAuthorizationStatus, NSArray<PKPaymentSummaryItem *> * _Nonnull))completion {
 
+    // Apple Pay fix: move selected shipping method to first position to have selected by default if shipping contact changes
+    [shippingMethods removeObject:shippingMethod];
+    [shippingMethods insertObject:shippingMethod atIndex:0];
+
     // update shipping fees item and recalculate total
     NSDecimalNumber *difference;
 
-    for (PKPaymentSummaryItem *item in summaryItems) {
+    PKPaymentSummaryItem *shippingFees = [self getShippingItem];
+    PKPaymentSummaryItem *merchantTotal = [self getMerchantTotalItem];
 
-        if ([item.label isEqualToString:SHIPPING_FEES_LABEL]) {
-            difference = [shippingMethod.amount decimalNumberBySubtracting:item.amount];
-            item.amount = shippingMethod.amount;
-        }
-        else if ([item.label isEqualToString:merchantName]) {
-            item.amount = [item.amount decimalNumberByAdding:difference];
-            totalPayment = item.amount;
-        }
-    }
+    difference = [shippingMethod.amount decimalNumberBySubtracting:shippingFees.amount];
+    shippingFees.amount = shippingMethod.amount;
+
+    merchantTotal.amount = [merchantTotal.amount decimalNumberByAdding:difference];
 
     completion(PKPaymentAuthorizationStatusSuccess, summaryItems);
 }
@@ -284,8 +493,13 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
         }
 
         NSDictionary *shippingMethod = [payment.shippingMethod dictionaryWithValuesForKeys:@[@"label", @"detail", @"amount"]];
+        if (!shippingMethod) {
+            shippingMethod = [[NSDictionary alloc] init];
+        }
 
-        NSString *amount = [NSString stringWithFormat:@"%@", totalPayment];
+        NSString *tax = [NSString stringWithFormat:@"%@", [self getTaxAmount]];
+        NSString *discount = [NSString stringWithFormat:@"%@", [self getDiscountAmount]];
+        NSString *amount = [NSString stringWithFormat:@"%@", [[self getMerchantTotalItem] amount]];
 
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
                                                 messageAsDictionary:@{@"paymentData":data,
@@ -294,6 +508,8 @@ static NSString *const SHIPPING_FEES_LABEL = @"Shipping fees";
                                                                       @"billingDetails": billing,
                                                                       @"shippingDetails": shipping,
                                                                       @"shippingMethod": shippingMethod,
+                                                                      @"tax": tax,
+                                                                      @"discount": discount,
                                                                       @"amount": amount}];
 
         paymentStatus = @"success";
